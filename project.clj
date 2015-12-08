@@ -1,12 +1,16 @@
-(defproject pigeon "0.1.0-SNAPSHOT"
+(defproject mrmcc3/pigeon "0.1.0-SNAPSHOT"
   :description "Message routing over firebase"
+  :url "http://github.com/mrmcc3/pigeon"
+  :license {:name "Eclipse Public License"
+            :url "http://www.eclipse.org/legal/epl-v10.html"}
 
   :repositories [["clojars" {:sign-releases false}]]
-  :jvm-opts ^:replace ["-Xms512m" "-Xmx512m" "-server"]
+
+  :java-source-paths ["src/java"]
 
   :dependencies [[org.clojure/clojure "1.7.0" :scope "provided"]
                  [org.clojure/clojurescript "1.7.170" :scope "provided"]
-                 [org.clojure/core.async "0.2.374"]
+                 [org.clojure/core.async "0.2.374" :scope "provided"]
                  [com.cognitect/transit-clj "0.8.285"]
                  [com.cognitect/transit-cljs "0.8.232"]
                  [com.firebase/firebase-client-jvm "2.4.1"]
@@ -14,11 +18,9 @@
 
   :plugins [[lein-cljsbuild "1.1.1"]]
 
-  :jar-exclusions [#".DS_Store"]
-  :clean-targets ^{:protect false} ["target" "resources/public/compiled-js"]
+  :jar-exclusions [#".DS_Store" #"dev" #"public" #"test"]
 
-  :profiles {:dev {:source-paths ["src" "dev"]
-                   :repl-options {:init-ns pigeon.dev}}}
+  :clean-targets ^{:protect false} ["target" "resources/public/compiled-js"]
 
   :cljsbuild
     {:builds [{:id "dev"
