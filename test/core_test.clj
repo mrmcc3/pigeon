@@ -1,7 +1,8 @@
 (ns clojure-test
   (:require [clojure.test :refer :all]
-            [clojure.core.async :as a :refer [go go-loop <! >!]]
-            [pigeon.core :as p]))
+            [clojure.core.async :as a :refer [close! go go-loop <! >!]]
+            [pigeon.core :as p]
+            [pigeon.tests :refer [wait]]))
 
 (def s (atom nil))
 
@@ -14,11 +15,6 @@
     (swap! s assoc :c1 (p/client {:root-url root
                              :location q})))
   (test-fn))
-
-(deftest server-up
-  (let [server (:h1 s)
-        res (go (<! server))]
-    (is res true)))
 
 (use-fixtures :once start-system)
 
