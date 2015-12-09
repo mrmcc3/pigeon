@@ -55,7 +55,7 @@
       (onDataChange [_ ss]
         (cb ss))
       (onCancelled [_ err]
-        (when-let [cbe (:error callbacks)] (cb err))))
+        (when-let [cbe (:error callbacks)] (cbe err))))
     (reify ChildEventListener
       (onChildAdded [_ ss _]
         (when-let [cb (:child-added callbacks)] (cb ss)))

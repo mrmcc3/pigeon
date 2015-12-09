@@ -4,6 +4,10 @@
 
 ;; WIP minimal clojurescript wrapper for firebase web client library
 
+;(when (= cljs.core/*target* "nodejs")
+;  (set! js/Firebase (cljs.nodejs/require "firebase"))
+;  (cljs.nodejs/enable-util-print!))
+
 ;; ----------------------------------------------------------------------------
 
 (defn ref [s]
@@ -39,8 +43,11 @@
 
 ;; ----------------------------------------------------------------------------
 
-(defn on-value [r cb]
-  (.on r "value" cb))
+(defn on-value
+  ([r cb]
+   (.on r "value" cb))
+  ([r cb cb-err]
+   (.on r "value" cb cb-err)))
 
 (defn on-child-added [r cb]
   (.on r "child_added" cb))
