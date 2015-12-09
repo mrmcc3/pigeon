@@ -22,10 +22,32 @@
 
   :clean-targets ^{:protect false} ["target" "resources/public/compiled-js"]
 
+  :profiles {:dev {:source-paths ["src" "dev"]}}
+
   :cljsbuild
-    {:builds [{:id "dev"
+    {:builds [{:id "browser"
                :source-paths ["src" "dev"]
                :compiler {:main pigeon.dev
-                          :asset-path "compiled-js"
+                          :asset-path "compiled-js/dev"
                           :output-to "resources/public/compiled-js/main.js"
-                          :output-dir "resources/public/compiled-js"}}]})
+                          :output-dir "resources/public/compiled-js/browser"}}
+              {:id "browser-test"
+               :source-paths ["src" "test"]
+               :compiler {:main pigeon.test-runners.browser
+                          :optimizations :advanced
+                          :asset-path "compiled-js/test-browser"
+                          :output-to "resources/public/compiled-js/main.js"
+                          :output-dir "resources/public/compiled-js/browser-test"}}
+              {:id "node"
+               :source-paths ["src" "test"]
+               :compiler {:main pigeon.test-runners.node
+                          :target :nodejs
+                          :output-to "target/compiled-js/main.js"
+                          :output-dir "target/compiled-js/node"}}
+              {:id "test-node"
+               :source-paths ["src" "test"]
+               :compiler {:main pigeon.test-runners.node
+                          :target :nodejs
+                          :optimizations :simple
+                          :output-to "target/compiled-js/main.js"
+                          :output-dir "target/compiled-js/node-test"}}]})
