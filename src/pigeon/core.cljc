@@ -25,7 +25,8 @@
     (fb/update info-ref {:online true}
       (fn [err]
         (when-not err
-          (a/put! started true))))
+          (a/put! started {:qref subq-ref
+                           :sref info-ref}))))
     (go []
       (>! channel (<! started))
       (loop []
@@ -43,7 +44,7 @@
       (fn [ss]
         (let [v (fb/val ss)]
           (reset! servers v)
-          (when v (a/put! started :up)))))
+          (when v (a/put! started {:sref servers-ref})))))
     (go
       (>! channel (<! started))
       (loop []

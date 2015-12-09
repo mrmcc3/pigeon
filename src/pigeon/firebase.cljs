@@ -42,6 +42,9 @@
 (defn on-value [r cb]
   (.on r "value" cb))
 
+(defn once [r cb]
+  (.once r "value" cb))
+
 (defn on-child-added [r cb]
   (.on r "child_added" cb))
 

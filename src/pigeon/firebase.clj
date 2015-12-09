@@ -71,10 +71,18 @@
 (defn on-value
   ([r cb]
    (.addValueEventListener r
-     (callbacks->el {:value cb})))
+                           (callbacks->el {:value cb})))
   ([r cb err-cb]
    (.addValueEventListener r
-     (callbacks->el {:value cb :error err-cb}))))
+                           (callbacks->el {:value cb :error err-cb}))))
+
+(defn once
+  ([r cb]
+   (.addListenerForSingleValueEvent r
+                           (callbacks->el {:value cb})))
+  ([r cb err-cb]
+   (.addListenerForSingleValueEvent r
+                           (callbacks->el {:value cb :error err-cb}))))
 
 (defn on-child-added
   ([r cb]
