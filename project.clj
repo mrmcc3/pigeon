@@ -22,6 +22,8 @@
 
   :clean-targets ^{:protect false} ["target" "resources/public/compiled-js"]
 
+  :profiles {:dev {:source-paths ["src" "dev"]}}
+
   :cljsbuild
     {:builds [{:id "dev"
                :source-paths ["src" "dev"]
