@@ -4,9 +4,7 @@
 
 ;; WIP minimal clojurescript wrapper for firebase web client library
 
-;(when (= cljs.core/*target* "nodejs")
-;  (set! js/Firebase (cljs.nodejs/require "firebase"))
-;  (cljs.nodejs/enable-util-print!))
+;; nodejs support?
 
 ;; ----------------------------------------------------------------------------
 

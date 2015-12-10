@@ -35,6 +35,8 @@
               {:id "browser-test"
                :source-paths ["src" "test"]
                :compiler {:main pigeon.test-runners.browser
+                          :externs ["firebase/firebase.ext.js"]
+                          ; :optimizations :advanced
                           :asset-path "compiled-js/browser-test"
                           :output-to "resources/public/compiled-js/main.js"
                           :output-dir "resources/public/compiled-js/browser-test"}}]})

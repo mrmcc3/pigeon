@@ -9,7 +9,7 @@
     [pigeon.env :refer [env]]))
 
 (defn wait
-  "helper for async tests default is 4s."
+  "helper for async tests. default timeout is 4s."
   ([ch] (wait ch (timeout 4000)))
   ([ch tch]
    (let [res (go
@@ -38,7 +38,7 @@
         handler (p/handler opts)
         client (p/client opts)]
     (go
-      (is (= true (<! handler)) "handler channel should close")
-      (is (= true (<! client)) "client channel should close")
+      (is (= true (<! handler)))
+      (is (= true (<! client)))
       (close! done))
     (wait done)))
