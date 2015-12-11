@@ -14,7 +14,9 @@
                  [com.cognitect/transit-clj "0.8.285"]
                  [com.cognitect/transit-cljs "0.8.232"]
                  [com.firebase/firebase-client-jvm "2.4.1"]
+                 [com.firebase/firebase-token-generator "2.0.0"]
                  [cljsjs/firebase "2.3.1-0"]
+                 ;; https://github.com/firebase/firebase-token-generator-node
                  [environ "1.0.1"]]
 
   :plugins [[lein-cljsbuild "1.1.1"]]
@@ -28,8 +30,8 @@
   :cljsbuild
     {:builds [{:id "browser"
                :source-paths ["src" "dev"]
-               :compiler {:main pigeon.dev
-                          :asset-path "compiled-js/dev"
+               :compiler {:main dev.user
+                          :asset-path "compiled-js/browser"
                           :output-to "resources/public/compiled-js/main.js"
                           :output-dir "resources/public/compiled-js/browser"}}
               {:id "browser-test"

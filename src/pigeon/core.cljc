@@ -32,13 +32,15 @@
     (when-not (= (status this) :up)
 
       (let [q-ref (fb/push (fb/child hub-ref "queues"))
-            s-ref (fb/child hub-ref "servers" (fb/key q-ref))
-            request-ch (a/chan)
-
-            auth-ch (a/promise-chan)
-            disc-ch (a/promise-chan)
-            list-ch (a/promise-chan)
-            info-ch (a/promise-chan)]
+            {:keys [fb-token fb-secret]} opts
+            auth-data (cond
+                        fb-token {:token fb-token}
+                        fb-secret
+                        {:token {:secret  fb-secret
+                                 :payload {:uid (str "server:"
+                                                     (fb/key q-ref))}
+                                 :options {:expire-in-days 10}}})
+            auth-ch (a/promise-chan)]
 
         ;; the server is up iff
 
@@ -49,18 +51,17 @@
 
         ;; calling start when the server is already up will have no affect
 
-        ;; 1. authenticate
-        (if auth-config
-          (fb/auth
-            hub-ref
-            auth-config
-            (fn [err auth]
-              (when err
-                (a/close! auth-ch))
-              (when-not err
-                (swap! state assoc :auth auth)
-                (a/put! auth-ch true))))
-          (a/put! auth-ch true))
+        ;(if auth-data
+        ;  (fb/auth
+        ;    hub-ref
+        ;    auth-data
+        ;    (fn [err auth]
+        ;      (when err
+        ;        (a/close! auth-ch))
+        ;      (when-not err
+        ;        (swap! state assoc :auth auth)
+        ;        (a/put! auth-ch true))))
+        ;  (a/put! auth-ch true))
 
         )))
 
@@ -77,7 +78,6 @@
      :status-ch (a/chan)
      :hub-ref (fb/child (fb/ref root-url) path)
      :state (atom {:status :down})}))
-
 
 
 ;; ---------------------------------------------------------------------------

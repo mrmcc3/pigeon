@@ -1,6 +1,7 @@
 (ns pigeon.firebase
   (:refer-clojure :exclude [ref set update key val])
-  (:require [cljsjs.firebase]))
+  (:require [cljs.core :as core]
+            [cljsjs.firebase]))
 
 ;; WIP minimal clojurescript wrapper for firebase web client library
 
@@ -72,3 +73,28 @@
 
 ;; ----------------------------------------------------------------------------
 ;; authentication
+
+(defn unauth [r]
+  (.unauth r))
+
+(defn- xform-auth-cb [cb]
+  (fn [err raw-auth]
+    (let [auth (js->clj raw-auth :keywordize-keys true)]
+      (cb err (core/update auth :provider keyword)))))
+
+(defn auth [r {:keys [token anonymous password oauth options]} cb]
+  (let [opts (if options (clj->js options) #js {})]
+    (cond
+      token
+      (if (string? token)
+        (.authWithCustomToken r token (xform-auth-cb cb) opts)
+        (.error js/console "map form for generating tokens not supported"))
+      password
+      (.authWithPassword r (clj->js password) (xform-auth-cb cb) opts)
+      anonymous
+      (.authAnonymously r (xform-auth-cb cb) opts)
+      oauth
+      (.warn js/console "oauth wrapper not implimented yet")
+      :else
+      (.warn js/console "no auth mechanism provided"))))
+
