@@ -6,7 +6,9 @@
 
 ;; nodejs support?
 
+
 ;; ----------------------------------------------------------------------------
+;; ref creation/navigation
 
 (defn ref [s]
   (js/Firebase. s))
@@ -26,7 +28,15 @@
           :else c)))
     r args))
 
+(defn parent [r]
+  (.parent r))
+
+(defn root [r]
+  (.root r))
+
+
 ;; ----------------------------------------------------------------------------
+;; mutations
 
 (defn set [r v]
   (.set r (clj->js v)))
@@ -39,7 +49,9 @@
   (doseq [r refs]
     (-> r .onDisconnect .remove)))
 
+
 ;; ----------------------------------------------------------------------------
+;; reads
 
 (defn on-value
   ([r cb]
@@ -50,7 +62,13 @@
 (defn on-child-added [r cb]
   (.on r "child_added" cb))
 
+
 ;; ----------------------------------------------------------------------------
+;; snapshots
 
 (defn val [ss]
   (-> ss .val (js->clj :keywordize-keys true)))
+
+
+;; ----------------------------------------------------------------------------
+;; authentication

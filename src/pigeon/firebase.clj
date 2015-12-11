@@ -9,7 +9,9 @@
 
 ;; WIP minimal clojure wrapper for firebase JVM client library
 
+
 ;; ----------------------------------------------------------------------------
+;; ref creation/navigation
 
 (defn ref [s]
   (Firebase. s))
@@ -29,7 +31,15 @@
           :else c)))
     r args))
 
+(defn parent [r]
+  (.getParent r))
+
+(defn root [r]
+  (.getRoot r))
+
+
 ;; ----------------------------------------------------------------------------
+;; mutations
 
 (defn cb->complete [cb]
   (reify Firebase$CompletionListener
@@ -47,7 +57,9 @@
   ([r]      (.removeValue (.onDisconnect r)))
   ([r cb]   (.removeValue (.onDisconnect r) (cb->complete cb))))
 
+
 ;; ----------------------------------------------------------------------------
+;; reads
 
 (defn callbacks->el [callbacks]
   (if-let [cb (:value callbacks)]
@@ -86,7 +98,9 @@
 
 ;; todo child-changed child-moved child-removed
 
+
 ;; ----------------------------------------------------------------------------
+;; snapshots
 
 (defprotocol ConvertibleToClojure
   (->clj [o]))
@@ -108,3 +122,7 @@
 
 (defn val [ss]
   (-> ss .getValue ->clj))
+
+
+;; ----------------------------------------------------------------------------
+;; authentication

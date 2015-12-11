@@ -1,8 +1,8 @@
 (ns pigeon.tests
-  #?(:cljs (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
+  #?(:cljs (:require-macros [cljs.core.async.macros :refer [go]]))
   (:require
-    #?(:clj  [clojure.core.async :as a :refer [<! >! >!! <!! chan close! go go-loop timeout]]
-       :cljs [cljs.core.async :as a :refer [<! >! chan close! timeout]])
+    #?(:clj  [clojure.core.async :as a :refer [<! >! >!! <!! go chan]]
+       :cljs [cljs.core.async :as a :refer [<! >! chan]])
     #?(:clj  [clojure.test :refer [deftest is run-tests]]
        :cljs [cljs.test :refer-macros [deftest is run-tests async]])
     [pigeon.core :as p]
@@ -10,7 +10,7 @@
 
 (defn wait
   "helper for async tests. default timeout is 4s."
-  ([ch] (wait ch (timeout 4000)))
+  ([ch] (wait ch (a/timeout 4000)))
   ([ch tch]
    (let [res (go
                (let [[_ c] (a/alts! [ch tch])]
@@ -19,26 +19,22 @@
      #?(:clj  (<!! res)
         :cljs (async done (go (<! res) (done)))))))
 
-(deftest firebase-permission-fail
-  (let [done (chan)
-        opts {:root-url (:fb-root env)
-              :location "bad-location"}
-        handler (p/handler opts)
-        client (p/client opts)]
-    (go
-      (is (= nil (<! handler)))
-      (is (= nil (<! client)))
-      (close! done))
-    (wait done (timeout 10000))))
+;; --------------------------------------------------------------------------
 
-(deftest start-handler-and-client
-  (let [done (chan)
-        opts {:root-url (:fb-root env)
-              :location (str (:fb-queue env) "/" (rand-int 1000000))}
-        handler (p/handler opts)
-        client (p/client opts)]
-    (go
-      (is (= true (<! handler)))
-      (is (= true (<! client)))
-      (close! done))
-    (wait done)))
+;(deftest firebase-permission-fail
+;  (let [done (chan)
+;        opts {:root-url (:fb-root env)
+;              :path "bad-location"}
+;        server (p/server opts)]
+;        ; client (p/client opts)]
+;    (go
+;      (p/start server)
+;      (is (= :down (<! (p/status-ch server))))
+;      (is (= :down (p/status server)))
+;      ; (is (= :down (<! (p/changes client))))
+;      ; (is (= :down (p/status client)))
+;      (a/close! done))
+;    (wait done (a/timeout 10000))))
+
+;; calling started when the client/server is already up will have no affect
+

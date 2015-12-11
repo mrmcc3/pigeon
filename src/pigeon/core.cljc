@@ -3,69 +3,95 @@
   (:require #?(:cljs [cljs.core.async :as a :refer [<! >!]]
                :clj  [clojure.core.async :as a :refer [<! >! go go-loop]])
             [pigeon.transit :as t]
-            [pigeon.firebase :as fb]
-            #?(:cljs [pigeon.env])))
+            [pigeon.firebase :as fb]))
 
-;; WIP async processes for message routing over firebase
+;; ---------------------------------------------------------------------------
+;; protocols
 
-(defn handler [{:keys [root-url location]}]
-  (let [q-ref (fb/child (fb/ref root-url) location)
-        subq-ref (-> q-ref (fb/child "queues") fb/push)
-        subq-key (fb/key subq-ref)
-        info-ref (-> q-ref (fb/child "servers" subq-key))
-        started (a/promise-chan)
-        msg-ch (a/chan)
-        channel (a/chan)]
-    (fb/remove-on-disconnect subq-ref)
-    (fb/remove-on-disconnect info-ref)
-    (fb/on-child-added
-      subq-ref
-      (fn [ss]
-        (let [payload (fb/val ss)
-              req (t/read payload)]
-          (a/put! msg-ch req))))
-    (fb/update
-      info-ref
-      {:online true}
-      (fn [err]
-        (when err
-          (a/close! channel)
-          (a/close! started)
-          (a/close! msg-ch))
-        (when-not err
-          (a/put! started true))))
-    (go []
-        (when-let [v (<! started)]
-          (>! channel v)
-          (loop []
-            (>! channel (<! msg-ch))
-            (recur))))
-    channel))
+(defprotocol Lifecycle
+  (status-ch [this])
+  (status [this])
+  (start [this])
+  (stop [this]))
 
-(defn client [{:keys [root-url location]}]
-  (let [q-ref (fb/child (fb/ref root-url) location)
-        servers-ref (-> q-ref (fb/child "servers"))
-        servers (atom nil)
-        started (a/promise-chan)
-        channel (a/chan)]
-    (fb/on-value
-      servers-ref
-      (fn [ss]
-        (let [v (fb/val ss)]
-          (reset! servers v)
-          (when v (a/put! started true))))
-      (fn [err]
-        (when err
-          (a/close! channel)
-          (a/close! started))))
-    (go
-      (when-let [v (<! started)]
-        (>! channel v)
-        (loop []
-          (let [req (<! channel)
-                payload (t/write req)
-                server (-> @servers keys rand-nth)
-                msg-ref (fb/push (fb/child q-ref "queues" server))]
-            (fb/set msg-ref payload))
-          (recur))))
-    channel))
+(defprotocol IRequest
+  (request [this val]))
+
+(defprotocol IServe
+  (request-ch [this]))
+
+;; ---------------------------------------------------------------------------
+;; server
+
+(defrecord Server [opts hub-ref status-ch state]
+  Lifecycle
+  (status-ch [_] status-ch)
+  (status [_] (:status @state))
+
+  (start [this]
+    (when-not (= (status this) :up)
+
+      (let [q-ref (fb/push (fb/child hub-ref "queues"))
+            s-ref (fb/child hub-ref "servers" (fb/key q-ref))
+            request-ch (a/chan)
+
+            auth-ch (a/promise-chan)
+            disc-ch (a/promise-chan)
+            list-ch (a/promise-chan)
+            info-ch (a/promise-chan)]
+
+        ;; the server is up iff
+
+        ;; 1. authenticated when auth-token/auth-secret is provided
+        ;; 2. onDisconnects are in place
+        ;; 3. child-added handler is in place
+        ;; 4. server info persisted
+
+        ;; calling start when the server is already up will have no affect
+
+        ;; 1. authenticate
+        (if auth-config
+          (fb/auth
+            hub-ref
+            auth-config
+            (fn [err auth]
+              (when err
+                (a/close! auth-ch))
+              (when-not err
+                (swap! state assoc :auth auth)
+                (a/put! auth-ch true))))
+          (a/put! auth-ch true))
+
+        )))
+
+  (stop [_]
+    (swap! state assoc :status :down)
+    (a/put! status-ch :down))
+
+  IServe
+  (request-ch [_] (get-in @state [:channels :request])))
+
+(defn server [{:keys [root-url path] :as opts}]
+  (map->Server
+    {:opts opts
+     :status-ch (a/chan)
+     :hub-ref (fb/child (fb/ref root-url) path)
+     :state (atom {:status :down})}))
+
+
+
+;; ---------------------------------------------------------------------------
+;; client
+
+; (defrecord Client [opts]
+;   Lifecycle
+;   (status-ch [_])
+;   (status [_])
+;   (start [_])
+;   (stop [_])
+;
+;   IRequest
+;   (request [_ val]))
+;
+; (defn client [opts]
+;   (map->Client {:opts opts}))
