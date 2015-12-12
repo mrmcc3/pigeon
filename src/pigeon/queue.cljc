@@ -33,9 +33,7 @@
     ;; idempotent. you can only start a system that is :down
     (when (= (status this) :down)
 
-      ;; change status to starting
       (swap! state assoc :status :starting)
-      (a/put! status-ch :starting)
 
       (let [
             ;; refs
@@ -139,7 +137,6 @@
     ;; idempotent. you can only stop a system that is :up or :starting
     (when (#{:up :starting} (status this))
 
-      ;; prevent multiple stop calls
       (swap! state assoc :status :shutting-down)
 
       ;; extract the runtime state
@@ -189,15 +186,72 @@
 ;; ---------------------------------------------------------------------------
 ;; client
 
-; (defrecord Client [opts]
-;   Lifecycle
-;   (status-ch [_])
-;   (status [_])
-;   (start [_])
-;   (stop [_])
-;
-;   IRequest
-;   (request [_ val]))
-;
-; (defn client [opts]
-;   (map->Client {:opts opts}))
+(defrecord Client [opts hub-ref status-ch state]
+  Lifecycle
+  (status-ch [_] status-ch)
+  (status [_] (:status @state))
+  (start [this]
+
+    ;; idempotent you can only start a system that is down
+    (when (= (status this) :down)
+
+      (swap! state assoc :status :starting)
+
+      (let [
+            ;; refs
+            ;; channels
+            ;; auth-config
+            ]
+
+        ;; 1. runtime state
+
+        ;; 2. authenticate
+
+        ;; 3. attached listener for server info
+
+
+        (swap! state assoc :status :up)
+        (a/put! status-ch :up)
+
+        )
+
+      :starting))
+
+  (stop [this]
+
+    ;; idempotent. you can only stop a system that is :up or :starting
+    (when (#{:up :starting} (status this))
+
+      (swap! state assoc :status :shutting-down)
+
+      (let [
+            ;; refs
+            ;; channels
+            ;; auth-config
+            ]
+
+        ;; 3. remove listeners for server info
+
+        ;; 2. un-authenticate
+
+        ;; 1. runtime state
+
+        (swap! state assoc :status :down)
+        (a/put! status-ch :down)
+
+        :down)))
+
+  IRequest
+  (request [_ val]
+    ;; use the state (including server info) to decide
+    ;; where to put messages. also attach onDisconnects
+    ;; and listeners for the responses that put to a channel.
+    ;; return the channel. when the channel
+    ;; closes remove listeners and onDisconnects
+    ))
+
+(defn client [{:keys [root-url path] :as opts}]
+  (map->Client {:opts      opts
+                :hub-ref   (fb/child (fb/ref root-url) path)
+                :status-ch (a/chan)
+                :state     (atom {:status :down})}))
