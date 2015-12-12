@@ -90,7 +90,7 @@
         ;; 4. attach child-added handler
         (let [handler (fb/on-child-added
                         q-ref
-                        (fn [ss] (a/put! reqs-ch ss))
+                        (fn [ss] (a/put! reqs-ch (t/read (fb/val ss))))
                         (fn [_] (a/close! reqs-off-ch)))]
           (go
             (<! reqs-off-ch)
@@ -220,7 +220,7 @@
             (fb/off-value s-ref handler)
             (stop this)))
 
-        ;; if all channels report values in under 5s then the client is up
+        ;; if all channels report values in under 5s the client is up
         (go
           (let [t-ch (a/timeout 5000)
                 a-ch (a/map (fn [& args] (every? true? args))
@@ -260,12 +260,11 @@
 
   IRequest
   (request [_ val]
-    ;; use the state (including server info) to decide
-    ;; where to put messages. also attach onDisconnects
-    ;; and listeners for the responses that put to a channel.
-    ;; return the channel. when the channel
-    ;; closes remove listeners and onDisconnect
-    ))
+    (let [servers (fb/val (:servers @state))
+          s-key (-> servers keys rand-nth name)
+          m-ref (fb/push (fb/child hub-ref "queues" s-key))
+          msg (t/write val)]
+      (fb/set m-ref msg))))
 
 (defn client [{:keys [root-url path] :as opts}]
   (map->Client {:opts      opts
