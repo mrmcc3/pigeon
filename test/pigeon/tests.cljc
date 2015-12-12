@@ -6,6 +6,7 @@
     #?(:clj  [clojure.test :refer [deftest is run-tests]]
        :cljs [cljs.test :refer-macros [deftest is run-tests async]])
     [pigeon.queue :as pq]
+    [pigeon.firebase :as fb]
     [pigeon.env :refer [env]]))
 
 (defn wait
@@ -21,20 +22,6 @@
 
 ;; --------------------------------------------------------------------------
 
-;(deftest firebase-permission-fail
-;  (let [done (chan)
-;        opts {:root-url (:fb-root env)
-;              :path "bad-location"}
-;        server (p/server opts)]
-;        ; client (p/client opts)]
-;    (go
-;      (p/start server)
-;      (is (= :down (<! (p/status-ch server))))
-;      (is (= :down (p/status server)))
-;      ; (is (= :down (<! (p/changes client))))
-;      ; (is (= :down (p/status client)))
-;      (a/close! done))
-;    (wait done (a/timeout 10000))))
+;; TODO
 
-;; calling started when the client/server is already up will have no affect
 
