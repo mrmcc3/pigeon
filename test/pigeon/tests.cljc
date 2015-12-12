@@ -5,7 +5,7 @@
        :cljs [cljs.core.async :as a :refer [<! >! chan]])
     #?(:clj  [clojure.test :refer [deftest is run-tests]]
        :cljs [cljs.test :refer-macros [deftest is run-tests async]])
-    [pigeon.core :as p]
+    [pigeon.queue :as pq]
     [pigeon.env :refer [env]]))
 
 (defn wait

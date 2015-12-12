@@ -39,17 +39,21 @@
 ;; ----------------------------------------------------------------------------
 ;; mutations
 
-(defn set [r v]
-  (.set r (clj->js v)))
+(defn set
+  ([r v] (.set r (clj->js v)))
+  ([r v cb] (.set r (clj->js v) cb)))
 
 (defn update
   ([r v] (.update r (clj->js v)))
-  ([r v cb] (.update r (clj->js v) #(cb %))))
+  ([r v cb] (.update r (clj->js v) cb)))
 
-(defn remove-on-disconnect [& refs]
-  (doseq [r refs]
-    (-> r .onDisconnect .remove)))
+(defn set-on-disconnect
+  ([r v] (.set (.onDisconnect r) v))
+  ([r v cb] (.set (.onDisconnect r) v cb)))
 
+(defn cancel-on-disconnect
+  ([r] (.cancel (.onDisconnect r)))
+  ([r cb] (.cancel (.onDisconnect r) cb)))
 
 ;; ----------------------------------------------------------------------------
 ;; reads
@@ -60,8 +64,14 @@
   ([r cb cb-err]
    (.on r "value" cb cb-err)))
 
-(defn on-child-added [r cb]
-  (.on r "child_added" cb))
+(defn on-child-added
+  ([r cb]
+   (.on r "child_added" cb))
+  ([r cb cb-err]
+   (.on r "child_added" cb cb-err)))
+
+(defn off-child-added [r cb]
+  (.off r "child_added" cb))
 
 
 ;; ----------------------------------------------------------------------------

@@ -57,13 +57,24 @@
   ([r v cb] (.setValue r (walk/stringify-keys v) (cb->complete cb))))
 
 (defn update
-  ([r v] (.updateChildren r (walk/stringify-keys v)))
-  ([r v cb] (.updateChildren r (walk/stringify-keys v) (cb->complete cb))))
+  ([r v]
+   (.updateChildren r (walk/stringify-keys v)))
+  ([r v cb]
+   (.updateChildren r (walk/stringify-keys v) (cb->complete cb))))
 
-(defn remove-on-disconnect
-  ([r] (.removeValue (.onDisconnect r)))
-  ([r cb] (.removeValue (.onDisconnect r) (cb->complete cb))))
+(defn set-on-disconnect
+  ([r v]
+   (.setValue (.onDisconnect r) v))
+  ([r v cb]
+   (.setValue (.onDisconnect r) v
+              ^Firebase$CompletionListener (cb->complete cb))))
 
+(defn cancel-on-disconnect
+  ([r]
+   (.cancel (.onDisconnect r)))
+  ([r cb]
+   (.setValue (.onDisconnect r)
+              ^Firebase$CompletionListener (cb->complete cb))))
 
 ;; ----------------------------------------------------------------------------
 ;; reads
@@ -89,19 +100,21 @@
 
 (defn on-value
   ([r cb]
-   (.addValueEventListener r
-                           (callbacks->el {:value cb})))
+   (.addValueEventListener r (callbacks->el {:value cb})))
   ([r cb err-cb]
-   (.addValueEventListener r
-                           (callbacks->el {:value cb :error err-cb}))))
+   (.addValueEventListener r (callbacks->el {:value cb
+                                             :error err-cb}))))
 
 (defn on-child-added
   ([r cb]
-   (.addChildEventListener r
-                           (callbacks->el {:child-added cb})))
+   (on-child-added r cb nil))
   ([r cb err-cb]
-   (.addValueEventListener r
-                           (callbacks->el {:child-added cb :error err-cb}))))
+   (let [el (callbacks->el {:child-added cb :error err-cb})]
+     (.addChildEventListener r el)
+     el)))
+
+(defn off-child-added
+  [r el] (.removeEventListener r el))
 
 ;; todo child-changed child-moved child-removed
 
