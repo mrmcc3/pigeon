@@ -37,8 +37,8 @@
 
       (let [
             ;; refs
-            q-ref (fb/push (fb/child hub-ref "queues"))
-            s-ref (fb/child hub-ref "servers" (fb/key q-ref))
+            q-ref (fb/push (fb/child hub-ref :queues))
+            s-ref (fb/child hub-ref :servers (fb/key q-ref))
 
             ;; channels
             auth-ch (a/promise-chan)
@@ -88,9 +88,20 @@
 
 
         ;; 4. attach child-added handler
+        ;; TODO use channels to flatten this out. decomplect FTW
         (let [handler (fb/on-child-added
                         q-ref
-                        (fn [ss] (a/put! reqs-ch (t/read (fb/val ss))))
+                        (fn [ss]
+                          (let [resp-ch (a/chan)]
+                            (a/put!
+                              reqs-ch
+                              (-> ss (fb/child :request) fb/val
+                                  (update :payload t/read)
+                                  (assoc :resp-ch resp-ch)))
+                            (go-loop []
+                              (when-let [resp (<! resp-ch)]
+                                (println "respond: " resp)
+                                (recur)))))
                         (fn [_] (a/close! reqs-off-ch)))]
           (go
             (<! reqs-off-ch)
@@ -185,7 +196,7 @@
       (swap! state assoc :status :starting)
 
       (let [;; refs
-            s-ref (fb/child hub-ref "servers")
+            s-ref (fb/child hub-ref :servers)
 
             ;; channels
             auth-ch (a/promise-chan)
@@ -262,9 +273,27 @@
   (request [_ val]
     (let [servers (fb/val (:servers @state))
           s-key (-> servers keys rand-nth name)
-          m-ref (fb/push (fb/child hub-ref "queues" s-key))
-          msg (t/write val)]
-      (fb/set m-ref msg))))
+          m-ref (fb/push (fb/child hub-ref :queues s-key))
+          r-ref (fb/child m-ref :responses)
+          payload (t/write val)
+          resp-ch (a/chan)
+          off-ch (a/promise-chan)
+          ;; TODO consider using channels to flatten this out
+          handler (fb/on-child-added
+                    r-ref
+                    (fn [ss]
+                      (let [{:keys [payload]} (fb/val ss)]
+                        (when payload
+                          (a/put! resp-ch (t/read payload)))))
+                    (fn [_] (a/close! off-ch)))]
+      (go
+        (<! off-ch)
+        (fb/off-child-added r-ref handler)
+        (a/close! resp-ch)
+        (fb/set m-ref nil))
+      (fb/set-on-disconnect m-ref nil)
+      (fb/set m-ref {:request {:payload payload}})
+      [resp-ch off-ch])))
 
 (defn client [{:keys [root-url path] :as opts}]
   (map->Client {:opts      opts
