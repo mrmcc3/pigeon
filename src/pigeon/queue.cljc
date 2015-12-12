@@ -5,6 +5,8 @@
                     [pigeon.transit :as t]
                     [pigeon.firebase :as fb]))
 
+;; TODO consider breaking into protocols/server/client namespaces
+
 ;; ---------------------------------------------------------------------------
 ;; protocols
 
