@@ -104,6 +104,10 @@
   ([r cb err-cb]
    (.addValueEventListener r (callbacks->el {:value cb
                                              :error err-cb}))))
+(defn- el-off [r el]
+  (.removeEventListener r el))
+
+(def off-value el-off)
 
 (defn on-child-added
   ([r cb]
@@ -113,8 +117,7 @@
      (.addChildEventListener r el)
      el)))
 
-(defn off-child-added
-  [r el] (.removeEventListener r el))
+(def off-child-added el-off)
 
 ;; todo child-changed child-moved child-removed
 

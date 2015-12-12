@@ -64,6 +64,9 @@
   ([r cb cb-err]
    (.on r "value" cb cb-err)))
 
+(defn off-value [r cb]
+  (.off r "value" cb))
+
 (defn on-child-added
   ([r cb]
    (.on r "child_added" cb))

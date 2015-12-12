@@ -44,31 +44,24 @@
             auth-ch (a/promise-chan)
             s-dis-ch (a/promise-chan)
             q-dis-ch (a/promise-chan)
-            on-err-ch (a/promise-chan)
-            reqs-ch (a/chan)
             info-ch (a/promise-chan)
 
-            ;; auth config
-            {:keys [fb-token fb-secret]} opts
-            auth-data (cond
-                        fb-token
-                        {:token fb-token}
-                        fb-secret
-                        {:token {:secret  fb-secret
-                                 :options {:expire-in-days 10}
-                                 :payload {:uid (fb/key q-ref)}}})]
+            reqs-ch (a/chan)
+            reqs-off-ch (a/promise-chan)
+
+            ]
 
         ;; 1. store runtime state (refs+channels) for shutdown
         (swap! state assoc
                :refs [q-ref s-ref]
                :channels [auth-ch s-dis-ch q-dis-ch
-                          on-err-ch info-ch reqs-ch])
+                          info-ch reqs-off-ch reqs-ch])
 
         ;; 2. authenticate
-        (if auth-data
+        (if-let [auth (:auth opts)]
           (fb/auth
             hub-ref
-            auth-data
+            auth
             (fn [err auth]
               (when err
                 (a/close! auth-ch))
@@ -98,10 +91,11 @@
         (let [handler (fb/on-child-added
                         q-ref
                         (fn [ss] (a/put! reqs-ch ss))
-                        (fn [_] (a/close! on-err-ch)))]
+                        (fn [_] (a/close! reqs-off-ch)))]
           (go
-            (<! on-err-ch)
-            (fb/off-child-added q-ref handler)))
+            (<! reqs-off-ch)
+            (fb/off-child-added q-ref handler)
+            (stop this)))
 
         ;; 5. persist server info
         (fb/set
@@ -112,24 +106,17 @@
               (a/close! info-ch)
               (a/put! info-ch true))))
 
-        ;; if any channels close then shutdown the server
-        (a/go-loop []
-          (let [[v _] (a/alts! [auth-ch q-dis-ch s-dis-ch info-ch on-err-ch])]
-            (if v
-              (recur)
-              (stop this))))
 
-        ;; if all channels report values in under 10s then the server is up
+        ;; if all channels report in under 5s then the server is up
         (go
-          (let [t-ch (a/timeout 10000)
+          (let [t-ch (a/timeout 5000)
                 a-ch (a/map (fn [& args] (every? true? args))
-                            [auth-ch q-dis-ch s-dis-ch info-ch])
-                [v ch] (a/alts! [a-ch t-ch])]
-            (cond
-              (= ch t-ch) (stop this)
-              v (do
-                  (swap! state assoc :status :up)
-                  (>! status-ch :up)))))
+                            [auth-ch q-dis-ch s-dis-ch info-ch])]
+            (if (= [true a-ch] (a/alts! [a-ch t-ch]))
+              (do
+                (swap! state assoc :status :up)
+                (>! status-ch :up))
+              (stop this))))
 
         :starting)))
 
@@ -140,25 +127,25 @@
       (swap! state assoc :status :shutting-down)
 
       ;; extract the runtime state
-      (let [{[auth-ch s-dis-ch q-dis-ch on-err-ch info-ch reqs-ch]
+      (let [{[auth-ch s-dis-ch q-dis-ch info-ch reqs-off-ch reqs-ch]
              :channels
              [q-ref s-ref]
              :refs} @state]
 
-        ;; 5. remove the server info
+        ;; 5. remove the server data
         (fb/set s-ref nil)
+        (fb/set q-ref nil)
         (a/close! info-ch)
 
         ;; 4. remove child-added handler
-        (a/close! on-err-ch)
+        (a/close! reqs-off-ch)
         (a/close! reqs-ch)
 
         ;; 3. cancel onDisconnects
-        (fb/set q-ref nil)
         (fb/cancel-on-disconnect q-ref)
         (fb/cancel-on-disconnect s-ref)
-        (a/close! s-dis-ch)
         (a/close! q-dis-ch)
+        (a/close! s-dis-ch)
 
         ;; 2. un-authenticate
         (fb/unauth hub-ref)
@@ -197,23 +184,52 @@
 
       (swap! state assoc :status :starting)
 
-      (let [
-            ;; refs
+      (let [;; refs
+            s-ref (fb/child hub-ref "servers")
+
             ;; channels
-            ;; auth-config
-            ]
+            auth-ch (a/promise-chan)
+            info-ch (a/promise-chan)
+            info-off-ch (a/promise-chan)]
 
         ;; 1. runtime state
+        (swap! state assoc :channels [auth-ch info-ch info-off-ch])
 
         ;; 2. authenticate
+        (if-let [auth (:auth opts)]
+          (fb/auth
+            hub-ref
+            auth
+            (fn [err auth]
+              (when err
+                (a/close! auth-ch))
+              (when-not err
+                (swap! state assoc :auth auth)
+                (a/put! auth-ch true))))
+          (a/put! auth-ch true))
 
         ;; 3. attached listener for server info
+        (let [handler (fb/on-value
+                        s-ref
+                        (fn [ss]
+                          (swap! state assoc :servers ss)
+                          (a/put! info-ch true))
+                        (fn [_] (a/close! info-off-ch)))]
+          (go
+            (<! info-off-ch)
+            (fb/off-value s-ref handler)
+            (stop this)))
 
-
-        (swap! state assoc :status :up)
-        (a/put! status-ch :up)
-
-        )
+        ;; if all channels report values in under 5s then the client is up
+        (go
+          (let [t-ch (a/timeout 5000)
+                a-ch (a/map (fn [& args] (every? true? args))
+                            [auth-ch info-ch])]
+            (if (= [true a-ch] (a/alts! [a-ch t-ch]))
+              (do
+                (swap! state assoc :status :up)
+                (>! status-ch :up))
+              (stop this)))))
 
       :starting))
 
@@ -224,21 +240,22 @@
 
       (swap! state assoc :status :shutting-down)
 
-      (let [
-            ;; refs
-            ;; channels
-            ;; auth-config
-            ]
+      (let [{[auth-ch info-ch info-off-ch] :channels} @state]
 
         ;; 3. remove listeners for server info
+        (a/close! info-off-ch)
+        (a/close! info-ch)
 
         ;; 2. un-authenticate
+        (fb/unauth hub-ref)
+        (a/close! auth-ch)
 
         ;; 1. runtime state
-
-        (swap! state assoc :status :down)
+        (swap! state assoc
+               :channels nil
+               :servers nil
+               :status :down)
         (a/put! status-ch :down)
-
         :down)))
 
   IRequest
@@ -247,7 +264,7 @@
     ;; where to put messages. also attach onDisconnects
     ;; and listeners for the responses that put to a channel.
     ;; return the channel. when the channel
-    ;; closes remove listeners and onDisconnects
+    ;; closes remove listeners and onDisconnect
     ))
 
 (defn client [{:keys [root-url path] :as opts}]
