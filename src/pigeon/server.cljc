@@ -9,6 +9,9 @@
 ;; ---------------------------------------------------------------------------
 ;; server
 
+(defn- complete-cb [ch]
+  #(if % (a/close! ch) (a/put! ch true)))
+
 (defrecord Server [opts hub-ref status-ch state]
   p/Lifecycle
   (status-ch [_] status-ch)
@@ -32,10 +35,23 @@
             q-dis-ch (a/promise-chan)
             info-ch (a/promise-chan)
 
-            reqs-ch (a/chan)
+            ss->resp-ch
+            (fn [ss]
+              (let [ch (a/chan)
+                    m-ref (fb/child q-ref (fb/key ss) :responses)]
+                (go-loop []
+                  (when-let [resp (<! ch)]
+                    (fb/set (fb/push m-ref) {:payload (t/write resp)})
+                    (recur)))
+                ch))
+            xform (map (fn [ss]
+                         (-> ss (fb/child :request) fb/val
+                             (update :payload t/read)
+                             (assoc :resp-ch (ss->resp-ch ss)))))
+            reqs-ch (a/chan 10 xform)
             reqs-off-ch (a/promise-chan)
-
-            ]
+            on-cb #(a/put! reqs-ch %)
+            err-cb (fn [_] (a/close! reqs-off-ch))]
 
         ;; 1. store runtime state (refs+channels) for shutdown
         (swap! state assoc
@@ -57,52 +73,18 @@
           (a/put! auth-ch true))
 
         ;; 3. set onDisconnects
-        (fb/set-on-disconnect
-          q-ref
-          nil
-          (fn [err]
-            (if err
-              (a/close! q-dis-ch)
-              (a/put! q-dis-ch true))))
-        (fb/set-on-disconnect
-          s-ref
-          nil
-          (fn [err]
-            (if err
-              (a/close! s-dis-ch)
-              (a/put! s-dis-ch true))))
-
+        (fb/set-on-disconnect q-ref nil (complete-cb q-dis-ch))
+        (fb/set-on-disconnect s-ref nil (complete-cb s-dis-ch))
 
         ;; 4. attach child-added handler
-        ;; TODO use channels to flatten this out. decomplect FTW
-        (let [handler (fb/on-child-added
-                        q-ref
-                        (fn [ss]
-                          (let [resp-ch (a/chan)]
-                            (a/put!
-                              reqs-ch
-                              (-> ss (fb/child :request) fb/val
-                                  (update :payload t/read)
-                                  (assoc :resp-ch resp-ch)))
-                            (go-loop []
-                              (when-let [resp (<! resp-ch)]
-                                (println "respond: " resp)
-                                (recur)))))
-                        (fn [_] (a/close! reqs-off-ch)))]
+        (let [handler (fb/on-child-added q-ref on-cb err-cb)]
           (go
             (<! reqs-off-ch)
             (fb/off-child-added q-ref handler)
             (p/stop this)))
 
         ;; 5. persist server info
-        (fb/set
-          s-ref
-          {"online" true}
-          (fn [err]
-            (if err
-              (a/close! info-ch)
-              (a/put! info-ch true))))
-
+        (fb/set s-ref {"online" true} (complete-cb info-ch))
 
         ;; if all channels report in under 5s then the server is up
         (go

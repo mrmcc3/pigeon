@@ -13,7 +13,7 @@
   (start [this]
 
     ;; idempotent you can only start a system that is down
-    (when (= (p/status this) :down)
+    (when (= (:status @state) :down)
 
       (swap! state assoc :status :starting)
 
@@ -69,7 +69,7 @@
   (stop [this]
 
     ;; idempotent. you can only stop a system that is :up or :starting
-    (when (#{:up :starting} (p/status this))
+    (when (#{:up :starting} (:status @state))
 
       (swap! state assoc :status :shutting-down)
 
@@ -98,16 +98,12 @@
           m-ref (fb/push (fb/child hub-ref :queues s-key))
           r-ref (fb/child m-ref :responses)
           payload (t/write val)
-          resp-ch (a/chan)
+          xform (map #(-> % fb/val :payload t/read))
+          resp-ch (a/chan 10 xform)
           off-ch (a/promise-chan)
-          ;; TODO consider using channels to flatten this out
-          handler (fb/on-child-added
-                    r-ref
-                    (fn [ss]
-                      (let [{:keys [payload]} (fb/val ss)]
-                        (when payload
-                          (a/put! resp-ch (t/read payload)))))
-                    (fn [_] (a/close! off-ch)))]
+          on-cb #(a/put! resp-ch %)
+          err-cb (fn [_] (a/close! off-ch))
+          handler (fb/on-child-added r-ref on-cb err-cb)]
       (go
         (<! off-ch)
         (fb/off-child-added r-ref handler)
