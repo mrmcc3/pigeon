@@ -6,10 +6,14 @@
                     [pigeon.transit :as t]
                     [pigeon.firebase :as fb]))
 
-(defrecord Client [opts hub-ref status-ch state]
+(defrecord Client [opts hub-ref state]
   p/Lifecycle
-  (status-ch [_] status-ch)
-  (status [_] (:status @state))
+  (started [_]
+    (:started @state))
+  (started [this timeout]
+    (go (let [[v _] (a/alts! [(p/started this) (a/timeout timeout)])] v)))
+  (status [_]
+    (:status @state))
   (start [this]
 
     ;; idempotent you can only start a system that is down
@@ -61,7 +65,7 @@
             (if (= [true a-ch] (a/alts! [a-ch t-ch]))
               (do
                 (swap! state assoc :status :up)
-                (>! status-ch :up))
+                (>! (:started @state) true))
               (p/stop this)))))
 
       :starting))
@@ -84,11 +88,13 @@
         (a/close! auth-ch)
 
         ;; 1. runtime state
+        (a/close! (:started @state))
         (swap! state assoc
                :channels nil
                :servers nil
-               :status :down)
-        (a/put! status-ch :down)
+               :status :down
+               :started (a/promise-chan))
+
         :down)))
 
   p/IRequest
@@ -116,5 +122,5 @@
 (defn client [{:keys [root-url path] :as opts}]
   (map->Client {:opts      opts
                 :hub-ref   (fb/child (fb/ref root-url) path)
-                :status-ch (a/chan)
-                :state     (atom {:status :down})}))
+                :state     (atom {:status :down
+                                  :started (a/promise-chan)})}))

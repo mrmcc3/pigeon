@@ -2,9 +2,9 @@
   #?(:cljs (:require-macros [cljs.core.async.macros :refer [go go-loop]]))
   (:require #?(:cljs [cljs.core.async :as a :refer [<! >!]]
                :clj [clojure.core.async :as a :refer [<! >! go go-loop]])
-                    [pigeon.protocols :as p]
-                    [pigeon.transit :as t]
-                    [pigeon.firebase :as fb]))
+              [pigeon.protocols :as p]
+              [pigeon.transit :as t]
+              [pigeon.firebase :as fb]))
 
 ;; ---------------------------------------------------------------------------
 ;; server
@@ -12,9 +12,12 @@
 (defn- complete-cb [ch]
   #(if % (a/close! ch) (a/put! ch true)))
 
-(defrecord Server [opts hub-ref status-ch state]
+(defrecord Server [opts hub-ref state]
   p/Lifecycle
-  (status-ch [_] status-ch)
+  (started [_]
+    (:started @state))
+  (started [this timeout]
+    (go (let [[v _] (a/alts! [(p/started this) (a/timeout timeout)])] v)))
   (status [_] (:status @state))
 
   (start [this]
@@ -94,7 +97,7 @@
             (if (= [true a-ch] (a/alts! [a-ch t-ch]))
               (do
                 (swap! state assoc :status :up)
-                (>! status-ch :up))
+                (>! (:started @state) true))
               (p/stop this))))
 
         :starting)))
@@ -131,11 +134,12 @@
         (a/close! auth-ch)
 
         ;; 1. cleanup the runtime state and set status to :down
+        (a/close! (:started @state))
         (swap! state assoc
                :channels nil
                :refs nil
-               :status :down)
-        (a/put! status-ch :down)
+               :status :down
+               :started (a/promise-chan))
         :down)))
 
   p/IServe
@@ -145,5 +149,5 @@
   (map->Server
     {:opts      opts
      :hub-ref   (fb/child (fb/ref root-url) path)
-     :status-ch (a/chan)
-     :state     (atom {:status :down})}))
+     :state     (atom {:status :down
+                       :started (a/promise-chan)})}))
