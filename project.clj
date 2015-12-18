@@ -14,7 +14,10 @@
                  [com.cognitect/transit-clj "0.8.285"]
                  [com.cognitect/transit-cljs "0.8.232"]
                  [com.firebase/firebase-client-jvm "2.4.1"]
-                 [cljsjs/firebase "2.3.1-0"]]
+                 [com.firebase/firebase-token-generator "2.0.0"]
+                 [cljsjs/firebase "2.3.1-0"]
+                 ;; https://github.com/firebase/firebase-token-generator-node
+                 [environ "1.0.1"]]
 
   :plugins [[lein-cljsbuild "1.1.1"]]
 
@@ -27,27 +30,14 @@
   :cljsbuild
     {:builds [{:id "browser"
                :source-paths ["src" "dev"]
-               :compiler {:main pigeon.dev
-                          :asset-path "compiled-js/dev"
+               :compiler {:main dev.user
+                          :asset-path "compiled-js/browser"
                           :output-to "resources/public/compiled-js/main.js"
                           :output-dir "resources/public/compiled-js/browser"}}
               {:id "browser-test"
                :source-paths ["src" "test"]
                :compiler {:main pigeon.test-runners.browser
                           :optimizations :advanced
-                          :asset-path "compiled-js/test-browser"
+                          :asset-path "compiled-js/browser-test"
                           :output-to "resources/public/compiled-js/main.js"
-                          :output-dir "resources/public/compiled-js/browser-test"}}
-              {:id "node"
-               :source-paths ["src" "test"]
-               :compiler {:main pigeon.test-runners.node
-                          :target :nodejs
-                          :output-to "target/compiled-js/main.js"
-                          :output-dir "target/compiled-js/node"}}
-              {:id "test-node"
-               :source-paths ["src" "test"]
-               :compiler {:main pigeon.test-runners.node
-                          :target :nodejs
-                          :optimizations :simple
-                          :output-to "target/compiled-js/main.js"
-                          :output-dir "target/compiled-js/node-test"}}]})
+                          :output-dir "resources/public/compiled-js/browser-test"}}]})
