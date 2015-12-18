@@ -14,7 +14,8 @@
 
 (defrecord Server [opts hub-ref status-ch state]
   p/Lifecycle
-  (status-ch [_] status-ch)
+  (started [_] (:started-prom @state))
+  ;;(status-ch [_] status-ch)
   (status [_] (:status @state))
 
   (start [this]
@@ -34,6 +35,7 @@
             s-dis-ch (a/promise-chan)
             q-dis-ch (a/promise-chan)
             info-ch (a/promise-chan)
+            started-prom (a/promise-chan)
 
             ss->resp-ch
             (fn [ss]
@@ -57,7 +59,8 @@
         (swap! state assoc
                :refs [q-ref s-ref]
                :channels [auth-ch s-dis-ch q-dis-ch
-                          info-ch reqs-off-ch reqs-ch])
+                          info-ch reqs-off-ch reqs-ch]
+               :started-prom started-prom)
 
         ;; 2. authenticate
         (if-let [auth (:auth opts)]
@@ -86,15 +89,16 @@
         ;; 5. persist server info
         (fb/set s-ref {"online" true} (complete-cb info-ch))
 
-        ;; if all channels report in under 5s then the server is up
+        ;; if all channels report in under 10s then the server is up
         (go
-          (let [t-ch (a/timeout 5000)
+          (let [t-ch (a/timeout 10000)
                 a-ch (a/map (fn [& args] (every? true? args))
                             [auth-ch q-dis-ch s-dis-ch info-ch])]
             (if (= [true a-ch] (a/alts! [a-ch t-ch]))
               (do
                 (swap! state assoc :status :up)
-                (>! status-ch :up))
+                ;;(>! status-ch :up)
+                (>! started-prom true))
               (p/stop this))))
 
         :starting)))
@@ -109,7 +113,9 @@
       (let [{[auth-ch s-dis-ch q-dis-ch info-ch reqs-off-ch reqs-ch]
              :channels
              [q-ref s-ref]
-             :refs} @state]
+             :refs
+             started-prom
+             :started-prom} @state]
 
         ;; 5. remove the server data
         (fb/set s-ref nil)
@@ -131,11 +137,15 @@
         (a/close! auth-ch)
 
         ;; 1. cleanup the runtime state and set status to :down
+        (a/close! started-prom)
+
         (swap! state assoc
                :channels nil
                :refs nil
-               :status :down)
-        (a/put! status-ch :down)
+               :status :down
+               :started-prom nil)
+        ;;(a/put! status-ch :down)
+
         :down)))
 
   p/IServe
@@ -145,5 +155,5 @@
   (map->Server
     {:opts      opts
      :hub-ref   (fb/child (fb/ref root-url) path)
-     :status-ch (a/chan)
+     ;;:status-ch (a/chan)
      :state     (atom {:status :down})}))

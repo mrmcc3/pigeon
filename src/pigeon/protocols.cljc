@@ -1,6 +1,7 @@
 (ns pigeon.protocols)
 
 (defprotocol Lifecycle
+  (started [this])
   (status-ch [this])
   (status [this])
   (start [this])

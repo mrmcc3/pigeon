@@ -8,7 +8,8 @@
 
 (defrecord Client [opts hub-ref status-ch state]
   p/Lifecycle
-  (status-ch [_] status-ch)
+  (started [_] (:started-prom @state))
+  ;;(status-ch [_] status-ch)
   (status [_] (:status @state))
   (start [this]
 
@@ -23,10 +24,13 @@
             ;; channels
             auth-ch (a/promise-chan)
             info-ch (a/promise-chan)
-            info-off-ch (a/promise-chan)]
+            info-off-ch (a/promise-chan)
+            started-prom (a/promise-chan)]
 
         ;; 1. runtime state
-        (swap! state assoc :channels [auth-ch info-ch info-off-ch])
+        (swap! state assoc
+               :channels [auth-ch info-ch info-off-ch]
+               :started-prom started-prom)
 
         ;; 2. authenticate
         (if-let [auth (:auth opts)]
@@ -61,7 +65,8 @@
             (if (= [true a-ch] (a/alts! [a-ch t-ch]))
               (do
                 (swap! state assoc :status :up)
-                (>! status-ch :up))
+                ;;(>! status-ch :up)
+                (>! started-prom true))
               (p/stop this)))))
 
       :starting))
@@ -73,7 +78,10 @@
 
       (swap! state assoc :status :shutting-down)
 
-      (let [{[auth-ch info-ch info-off-ch] :channels} @state]
+      (let [{[auth-ch info-ch info-off-ch]
+             :channels
+             started-prom
+             :started-prom} @state]
 
         ;; 3. remove listeners for server info
         (a/close! info-off-ch)
@@ -84,11 +92,15 @@
         (a/close! auth-ch)
 
         ;; 1. runtime state
+        (a/close! started-prom)
+
         (swap! state assoc
                :channels nil
                :servers nil
-               :status :down)
-        (a/put! status-ch :down)
+               :status :down
+               :started-prom nil)
+        ;;(a/put! status-ch :down)
+
         :down)))
 
   p/IRequest
