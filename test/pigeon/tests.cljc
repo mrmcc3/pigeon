@@ -7,8 +7,7 @@
        :cljs [cljs.test :refer-macros [deftest is run-tests async]])
              [pigeon.core :as p]
              [pigeon.env :refer [env]]
-             [pigeon.firebase :as fb]
-             [pigeon.transit :as t]))
+             [pigeon.firebase :as fb]))
 
 (defn wait
   "helper for async tests. default timeout is 4s."
@@ -173,7 +172,7 @@
     (wait done (a/timeout 15000))))
 
 (deftest load-balance
-  (let [sn 9 cn 1 msgn 25 ;; msg n must be high enough
+  (let [sn 6 cn 1 msgn (* 5 sn) ;; msg n must be high enough
         msg "testing load balance"
         e (set-up-environment sn cn "tq-tests/load-balance")
         c (first (:clients @e))
@@ -193,7 +192,7 @@
 
       (stop-environment e)
       (a/close! done))
-    (wait done (a/timeout 10000))))
+    (wait done (a/timeout (* sn 300)))))
 
 (comment
   )
