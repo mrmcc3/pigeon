@@ -166,7 +166,7 @@
                      (fn[ss] (if (nil? (fb/val ss))
                                (a/put! fbchan msg))))
       (is (= msg (<! fbchan))
-          "The Firebase has some gurbled data remaining")
+          "The Firebase has some garbled data remaining")
 
       (a/close! done))
     (wait done (a/timeout 15000))))
@@ -193,6 +193,23 @@
       (stop-environment e)
       (a/close! done))
     (wait done (a/timeout (* sn 300)))))
+
+(deftest request-response
+  (let [sn 1 cn 2
+        e (set-up-environment sn cn "tq-tests/request-response")
+        done (a/chan)]
+    (go
+      (<! (start-environment e))
+
+      (let [res (p/request (first (:clients @e)) {:msg {:type :lead
+                                                        :data "very much data"}})
+            {:keys [payload resp-ch]} (<! (p/request-ch (first (:servers @e))))]
+        (>! resp-ch "message recieved")
+        (is (= "message recieved" (<! (first res)))))
+
+      (stop-environment e)
+      (a/close! done))
+    (wait done (a/timeout (* 10000)))))
 
 (comment
   )
