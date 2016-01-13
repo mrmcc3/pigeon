@@ -12,11 +12,10 @@
                  [org.clojure/clojurescript "1.7.170" :scope "provided"]
                  [org.clojure/core.async "0.2.374" :scope "provided"]
                  [com.cognitect/transit-clj "0.8.285"]
-                 [com.cognitect/transit-cljs "0.8.232"]
-                 [com.firebase/firebase-client-jvm "2.4.1"]
+                 [com.cognitect/transit-cljs "0.8.237"]
+                 [com.firebase/firebase-client-jvm "2.5.0"]
                  [com.firebase/firebase-token-generator "2.0.0"]
                  [cljsjs/firebase "2.3.1-0"]
-                 ;; https://github.com/firebase/firebase-token-generator-node
                  [environ "1.0.1"]]
 
   :plugins [[lein-cljsbuild "1.1.1"]]
