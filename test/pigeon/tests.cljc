@@ -197,6 +197,7 @@
 (deftest request-response
   (let [sn 1 cn 2
         e (set-up-environment sn cn "tq-tests/request-response")
+        rec "msgrecd"
         done (a/chan)]
     (go
       (<! (start-environment e))
@@ -204,8 +205,27 @@
       (let [res (p/request (first (:clients @e)) {:msg {:type :lead
                                                         :data "very much data"}})
             {:keys [payload resp-ch]} (<! (p/request-ch (first (:servers @e))))]
-        (>! resp-ch "message recieved")
-        (is (= "message recieved" (<! (first res)))))
+        (>! resp-ch rec)
+        (is (= rec (<! (first res)))))
+
+      (stop-environment e)
+      (a/close! done))
+    (wait done (a/timeout (* 10000)))))
+
+(deftest request-responses
+  (let [sn 1 cn 2 msgn 20
+        e (set-up-environment sn cn "tq-tests/request-responses")
+        rec "msgrecd"
+        done (a/chan)]
+    (go
+      (<! (start-environment e))
+
+      (let [res (p/request (first (:clients @e)) {:msg {:type :lead
+                                                        :data "very much data"}})
+            {:keys [payload resp-ch]} (<! (p/request-ch (first (:servers @e))))]
+        (doseq [i (range 0 msgn)]
+          (>! resp-ch (str rec i))
+          (is (= (str rec i) (<! (first res))))))
 
       (stop-environment e)
       (a/close! done))
