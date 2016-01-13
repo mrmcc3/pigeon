@@ -5,8 +5,10 @@
        :cljs [cljs.core.async :as a :refer [<! >! chan]])
     #?(:clj  [clojure.test :refer [deftest is run-tests]]
        :cljs [cljs.test :refer-macros [deftest is run-tests async]])
-    [pigeon.core :as p]
-    [pigeon.env :refer [env]]))
+             [pigeon.core :as p]
+             [pigeon.env :refer [env]]
+             [pigeon.firebase :as fb]
+             [pigeon.transit :as t]))
 
 (defn wait
   "helper for async tests. default timeout is 4s."
@@ -61,8 +63,10 @@
 ;; tests
 
 (deftest environment-atom
-  (let [sn 3 cn 3
+  (let [sn 1 cn 1
         e (set-up-environment sn cn "tq-tests/environment-atom")
+        fbr (:hub-ref (first (:servers @e)))
+        fbchan (a/chan)
         done (a/chan)]
     (go
       (<! (start-environment e))
@@ -70,20 +74,122 @@
           "There should be one server in the atom")
       (is (= cn (count (:clients @e)))
           "There should be one client in the atom")
+
+      (fb/once-value fbr
+                     (fn[ss] (a/put! fbchan (fb/val ss))))
+
+      (is (= sn (count (<! fbchan)))
+          "There should be one server on Firebase")
+
       (stop-environment e)
       (a/close! done))
     (wait done (a/timeout 10000))))
 
-(deftest load-balance
-  (let [sn 3 cn 1 msgn 10
-        e (set-up-environment sn cn "tq-tests/single-through")
+(deftest one-message
+  (let [sn 1 cn 1
+        msg "testing one message"
+        e (set-up-environment sn cn "tq-tests/one-message")
+        fbr (:hub-ref (first (:servers @e)))
         c (first (:clients @e))
+        fbchan (a/chan)
         done (a/chan)]
     (go
       (<! (start-environment e))
 
-      (doseq [i (range msgn)]
-        (p/request c "HEY THERE"))
+      (p/request c msg)
+
+      (fb/once-value fbr
+                     (fn[ss] (a/put! fbchan (fb/val ss))))
+
+      (let [res (first (vals (:queues (<! fbchan))))]
+        (is (= 1 (count res))
+            "There should be one request on Firebase"))
+
+      (is (= msg (:payload (<! (p/request-ch (first (:servers @e))))))
+          "The sending & recieving messages do not match")
+
+      (stop-environment e)
+      (a/close! done))
+    (wait done (a/timeout 10000))))
+
+(deftest many-messages
+  (let [sn 1 cn 1 msgn 5
+        msg "testing many messages"
+        e (set-up-environment sn cn "tq-tests/many-messages")
+        fbr (:hub-ref (first (:servers @e)))
+        c (first (:clients @e))
+        fbchan (a/chan)
+        done (a/chan)]
+    (go
+      (<! (start-environment e))
+
+      (doseq [i (range 0 msgn)]
+        (p/request c (str msg i)))
+
+      (fb/once-value fbr
+                     (fn[ss] (a/put! fbchan (fb/val ss))))
+
+      (let [res (first (vals (:queues (<! fbchan))))]
+        (is (= msgn (count res))
+            "There is an incorrect number of requests on Firebase"))
+
+      (doseq [i (range 0 msgn)]
+        (is (= (str msg i) (:payload (<! (p/request-ch (first (:servers @e))))))
+            "The sending & recieving messages do not match"))
+
+      (stop-environment e)
+      (a/close! done))
+    (wait done (a/timeout 10000))))
+
+(deftest clean-up
+  (let [sn 1 cn 1
+        msg "testing clean up"
+        e (set-up-environment sn cn "tq-tests/clean-up")
+        fbr (:hub-ref (first (:servers @e)))
+        c (first (:clients @e))
+        fbchan (a/chan)
+        done (a/chan)]
+    (go
+      (<! (start-environment e))
+
+      (p/request c msg)
+
+      (fb/once-value fbr
+                     (fn[ss] (a/put! fbchan (fb/val ss))))
+      (is (not (nil? (first (vals (:queues (<! fbchan))))))
+          "The message should have been sent to Firebase")
+
+      (stop-environment e)
+
+      (<! (a/timeout 1000))
+
+      (fb/once-value fbr
+                     (fn[ss] (if (nil? (fb/val ss))
+                               (a/put! fbchan msg))))
+      (is (= msg (<! fbchan))
+          "The Firebase has some gurbled data remaining")
+
+      (a/close! done))
+    (wait done (a/timeout 15000))))
+
+(deftest load-balance
+  (let [sn 9 cn 1 msgn 25 ;; msg n must be high enough
+        msg "testing load balance"
+        e (set-up-environment sn cn "tq-tests/load-balance")
+        c (first (:clients @e))
+        fbr (:hub-ref (first (:servers @e)))
+        fbchan (a/chan)
+        done (a/chan)]
+    (go
+      (<! (start-environment e))
+
+      (doseq [i (range 0 msgn)]
+               (p/request c msg))
+
+      (fb/once-value fbr
+                     (fn[ss] (a/put! fbchan (fb/val ss))))
+      (is (= sn (count (:queues (<! fbchan))))
+          "Not enough load balancing is occuring")
 
       (stop-environment e)
       (a/close! done))
