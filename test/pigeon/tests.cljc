@@ -25,18 +25,18 @@
 ;; environment helper functions
 
 (defn set-up-environment[servers clients path]
-  (let [env (atom {})]
-    (swap! env assoc
+  (let [environment (atom {})]
+    (swap! environment assoc
            :servers
-           (map (fn [_] (p/server {:root-url "https://totalquote.firebaseio.com/"
+           (map (fn [_] (p/server {:root-url (env :fb-root)
                                    :path     path}))
                 (range servers)))
-    (swap! env assoc
+    (swap! environment assoc
            :clients
-           (map (fn [_] (p/client {:root-url "https://totalquote.firebaseio.com/"
+           (map (fn [_] (p/client {:root-url (env :fb-root)
                                    :path     path}))
                 (range clients)))
-    env))
+    environment))
 
 (defn start-group[environment start-me]
   (let [chs (map
