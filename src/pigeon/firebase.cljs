@@ -64,6 +64,12 @@
   ([r cb cb-err]
    (.on r "value" cb cb-err)))
 
+(defn once-value
+  ([r cb]
+   (.once r "value" cb))
+  ([r cb cb-err]
+   (.once r "value" cb cb-err)))
+
 (defn off-value [r cb]
   (.off r "value" cb))
 
