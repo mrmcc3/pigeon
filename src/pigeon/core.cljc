@@ -7,6 +7,7 @@
 (def stop p/stop)
 (def status p/status)
 (def started p/started)
+(def status-ch p/status-ch)
 (def request p/request)
 (def request-ch p/request-ch)
 (def client c/client)

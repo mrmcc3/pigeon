@@ -104,6 +104,13 @@
   ([r cb err-cb]
    (.addValueEventListener r (callbacks->el {:value cb
                                              :error err-cb}))))
+
+(defn once-value
+  ([r cb]
+   (.addListenerForSingleValueEvent r (callbacks->el {:value cb})))
+  ([r cb err-cb]
+   (.addListenerForSingleValueEvent r (callbacks->el {:value cb
+                                             :error err-cb}))))
 (defn- el-off [r el]
   (.removeEventListener r el))
 
